@@ -34,6 +34,9 @@
 # build dictionary
 build/
 
+# Nocompile dictionary
+NoCompile/
+
 # build mid file
 .*.cmd
 
