@@ -1,5 +1,5 @@
 KDIR := /home/kdp-pi/src_kernel/linux-v6.6.y-Xenomai4-EVL
-CURRENT_PATH := /home/kdp-pi/AI_Space/driver
+CURRENT_PATH := /home/kdp-pi/Space_AI/driver
 obj-m := timer_space.o
 
 #添加编译时需要Include的路径

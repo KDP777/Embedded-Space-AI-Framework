@@ -10,7 +10,8 @@
 
 #define DEV_CNT 1       //设备号数量
 #define TIMER_NAME "timer_space"
-#define US_DELAY 1
+#define US_DELAY 0
+#define WAIT_ToTime 1
 
 struct timer_dev{
 	dev_t devid;                 //设备号
@@ -98,32 +99,48 @@ static ssize_t timer_write(struct file* flip, const char* __user set_time,
 	return ret;
 }
 
-static long timer_ioctl(struct file* flip, unsigned int cmd,
-						unsigned long arg){
+static long timer_ioctl(struct file* flip, unsigned int cmd, unsigned long arg){
 	unsigned long long i, n, time;
 	unsigned long long _ms,_us;
 
-	if (cmd != US_DELAY){
-		printk("not us delay function!");
-		return -1;
-	}
+	switch (cmd){
+	case US_DELAY:
+		if(arg <= 10000){
+			udelay(arg);
+			return 1;
+		}
+		else{
+			_ms = arg/1000;
+			time = jiffies_64+_ms;
+			_us = arg-_ms*1000;
+			n = (arg/100)+1;
+			for (i=0;i<n;i++){
+				if(jiffies_64>=time){
+					break;
+				}
+				udelay(100);
+			}
+			udelay(_us);
+		}
+		break;
+	case WAIT_ToTime:
+		_ms = time_bias - origin ;
+		if ((jiffies_64+_ms) > arg){
+			printk("TIME_WAIT,Please check the input arg, It is the past time!");
+			return -1;
+		}
+		time = arg-(jiffies_64+_ms);
+		n = time*100;
 
-	if(arg <= 10000){
-		udelay(arg);
-		return 1;
-	}
-	else{
-		_ms = arg/1000;
-		time = jiffies_64+_ms;
-		_us = arg-_ms*1000;
-		n = (arg/100)+1;
-		for (i=0;i<n;i++){
-			if(jiffies_64>=time){
+		for(i=0;i<n;i++){
+			if((jiffies_64+_ms)>=arg){
 				break;
 			}
-			udelay(100);
+			udelay(10);
 		}
-		udelay(_us);
+		break;
+	default:
+		break;
 	}
 
 	return 1;
