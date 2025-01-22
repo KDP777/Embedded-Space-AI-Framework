@@ -100,7 +100,7 @@ int craterNav(unsigned long tickNum, unsigned long tickGap){
 	int mat_shape[20];
 	double data[200000];
 	//读取文件1
-	int val_cnt = readCSV_mat("../data/libTri_20240924_approach1_25.csv", mat_shape, data);
+	int val_cnt = readCSV_mat("./data/libTri_20240924_approach1_25.csv", mat_shape, data);
 
 	//将读取的csv数据赋值给Matrix
 	int ptr_bias = 0;
@@ -136,7 +136,7 @@ int craterNav(unsigned long tickNum, unsigned long tickGap){
 
 
 	//读取文件2
-	val_cnt = readCSV_mat("../data/ImgTri_20240924_approach1_25.csv", mat_shape, data);
+	val_cnt = readCSV_mat("./data/ImgTri_20240924_approach1_25.csv", mat_shape, data);
 	ptr_bias = 0;
 	// PCA模板提取的陨坑位置
 	MatrixXd crater_PCA(mat_shape[0],mat_shape[1]);
@@ -256,7 +256,7 @@ void CPU_check(unsigned long vld_cnt, algorithm_module* algo_mod){
 	int i,cpuIter_i;
 
 	for(i = 0;i<MOD_NUM;i++){
-		cnt[i] = threeChooseTwo_read<unsigned long>(&shmPtr.ModCnt[i],1024);
+		cnt[i] = *(threeChooseTwo_read<unsigned long>(&shmPtr.ModCnt[i],REDUN_BIAS));
 	}
 	
 	// 分支1 - 各模块工作正常分支
@@ -302,7 +302,7 @@ int Process_sched(void){
 
 	//设置算法模块起始有效标识符为99999
 	for(i=0;i<MOD_NUM;i++){
-		threeChooseTwo_write<unsigned long>(&shmPtr.ModCnt[i],99999,1024);
+		threeChooseTwo_write<unsigned long>(&shmPtr.ModCnt[i],99999,REDUN_BIAS);
 	}
 
 	/********************** 运行算法模块相关初始化 ***************************/
@@ -341,7 +341,7 @@ int Process_sched(void){
 	while(1){ //等待其他合作进程初始化完成
 		//遍历查询cpu_status标志位
 		for(i=0;i<MOD_NUM;i++){
-			ready_flg += threeChooseTwo_read<unsigned long>(&shmPtr.ModCnt[i],1024);
+			ready_flg += *(threeChooseTwo_read<unsigned long>(&shmPtr.ModCnt[i],REDUN_BIAS));
 		}
 
 		if(ready_flg == MOD_NUM){

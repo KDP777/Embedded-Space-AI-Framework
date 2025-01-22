@@ -3,6 +3,7 @@
 #include "common.hpp"
 #include "redundency.hpp"
 
+/********************进程配置************************/
 // 声明入口函数- int(*)(void)
 int Process_sched(void);
 
@@ -16,14 +17,18 @@ int Process_sched(void);
  */
 #define __proc_entry__ Process_sched //指定入口函数
 
-//进程相关的全局变量
-extern int proc_cpuFlg; //进程绑定cpu标识
+#define SHM_SIZE 0xC00000 //共享内存大小-12M
+#define REDUN_BIAS 0x100000 //三取二区域偏移地址
+
+/**************进程相关的全局变量申明*****************/
+extern int proc_cpuNum; //进程绑定cpu数量
+extern int proc_cpuFlg[1000]; //进程绑定cpu标识
 extern int proc_modFlg; //进程任务模块标识
 extern struct _shmPtr{
 	void* origin;
 	unsigned long* ModCnt;
 	int* ModCPU;
-	double* DataHub;
+	void* DataHub;
 } shmPtr; //共享内存地址-结构体
 extern char cpu_status[4]; //标识cpu的可用情况-cpu在硬件层面是否可用
 extern int cpuNum;
@@ -87,7 +92,7 @@ public:
 	int cpu_set(void){
 		if(this->runing_cpu>=0) //该进程使用的cpu有效
 		{
-			threeChooseTwo_write<int>(&this->shm_ModCPUPtr[this->mod_flg], this->runing_cpu, 1024); //写入共享内存区域
+			threeChooseTwo_write<int>(&this->shm_ModCPUPtr[this->mod_flg], &this->runing_cpu, REDUN_BIAS); //写入共享内存区域
 		}
 		return this->runing_cpu;
 	}
@@ -95,25 +100,22 @@ public:
 	int run(unsigned long tickNum, unsigned long time_sched){
 		unsigned long complete_tickNum = tickNum+1;
 		unsigned long waitTime_max = time_sched + this->MaxWaitT_pre; //最大等MaxWaitT_mod时间
-		bool mod_en = true; //模块使能标志
+		bool mod_en;//模块使能标志
 		int run_flg = 1;
 
 		//确认前置任务是否完成
 		while(1){
+			mod_en = true;
 			for(int i=0;i<this->total_modNum;i++){
 				if (this->pre_mod[i] == 1){
-					if (threeChooseTwo_read<unsigned long>(&this->shm_ModCntPtr[i],1024) != complete_tickNum)
+					if (*(threeChooseTwo_read<unsigned long>(&this->shm_ModCntPtr[i],REDUN_BIAS)) != complete_tickNum)
 						mod_en = false;
 				}
 			}
 
 
-			if(mod_en == false){
-				mod_en = true; //继续循环
-			}
-			else{
-				break;
-			}
+			if(mod_en == true)
+				break; //跳出循环
 
 			if (get_time_ms()>waitTime_max){
 				mod_en = false;
@@ -123,7 +125,7 @@ public:
 			delay_ms(1);
 		}
 
-		unsigned long tickGap = complete_tickNum - threeChooseTwo_read<unsigned long>(&this->shm_ModCntPtr[this->mod_flg],1024);
+		unsigned long tickGap = complete_tickNum - *(threeChooseTwo_read<unsigned long>(&this->shm_ModCntPtr[this->mod_flg],REDUN_BIAS));
 		if(mod_en){
 			//运行算法模块
 			run_flg = this->run_task(tickNum, tickGap);
@@ -133,7 +135,7 @@ public:
 		if(run_flg == 1){
 			//模块运行节拍数+1，并写入共享内存
 			this->iterNum = complete_tickNum;
-			threeChooseTwo_write<unsigned long>(&this->shm_ModCntPtr[this->mod_flg],this->iterNum,1024);
+			threeChooseTwo_write<unsigned long>(&this->shm_ModCntPtr[this->mod_flg],&this->iterNum,REDUN_BIAS);
 		}
 
 		return 1;
@@ -141,13 +143,13 @@ public:
 
 	void iterNum_align(unsigned long iterNum_i){
 		this->iterNum = iterNum_i;
-		threeChooseTwo_write<unsigned long>(&this->shm_ModCntPtr[this->mod_flg],this->iterNum,1024);
+		threeChooseTwo_write<unsigned long>(&this->shm_ModCntPtr[this->mod_flg],&this->iterNum,REDUN_BIAS);
 	}
 
 	void activate(unsigned long iterNum_i,unsigned long maxWaitTime, int (*run_task_i)(unsigned long, unsigned long)){
 		//激活cpu为当前进程cpu
-		this->runing_cpu = proc_cpuFlg;
-		threeChooseTwo_write<int>(&this->shm_ModCPUPtr[this->mod_flg], this->runing_cpu, 1024); //写入共享内存区域
+		this->runing_cpu = proc_cpuFlg[0];
+		threeChooseTwo_write<int>(&this->shm_ModCPUPtr[this->mod_flg],&this->runing_cpu, REDUN_BIAS); //写入共享内存区域
 
 		//设置最大的前置任务等待时间
 		this->MaxWaitT_pre = maxWaitTime;

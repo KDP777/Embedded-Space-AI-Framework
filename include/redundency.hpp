@@ -1,107 +1,70 @@
-#ifndef __REDUNDENCY__
-#define __REDUNDENCY__
+#ifndef __REDUN__
+#define __REDUN__
 
-#include "common.hpp"
+#include <iostream>
+#include <cstring>
+#include <unistd.h>
+#include <stdio.h>
+#include <stdlib.h>
 
 using namespace std;
 
 //描述：三取二写数据
-//输入：arg1-起始指针
-//	    arg2-写入数值
-//		arg3-地址偏移
-//输出：成功输出1，失败输出-1
+//输入：arg1-共享内存指针
+//	    arg2-写入数据指针
+//      arg3-数据长度(当量：字节)
+//		arg4-三取二地址偏移
+//输出：无
 template <typename T>
-int threeChooseTwo_write(T* stratPtr, T val, int add_bias){
-	int bias_T;
-	switch(sizeof(T)){
-	case 1:
-		bias_T = add_bias;
-		break;
-	case 2:
-		bias_T = add_bias>>1;
-		break;
-	case 4:
-		bias_T = add_bias>>2;
-		break;
-	case 8:
-		bias_T = add_bias>>3;
-		break;
-	case 16:
-		bias_T = add_bias>>4;
-		break;
-	case 32:
-		bias_T = add_bias>>5;
-		break;
-	default:
-		bias_T = add_bias/sizeof(T);
-	}
+void threeChooseTwo_write(void* shmPtr, void* src_data, int add_bias, int len=sizeof(T)){
 
-	T* stratPtr_bias1 = (T*)(stratPtr+bias_T);
-	T* stratPtr_bias2 = (T*)(stratPtr+bias_T+bias_T);
+	char* shmPtr1 = (char*)shmPtr;
+	char* shmPtr2 = shmPtr1+add_bias;
+	char* shmPtr3 = shmPtr2+add_bias;
 
-	*stratPtr = val;
-	*stratPtr_bias1 = val;
-	*stratPtr_bias2 = val;
+	//保存三份数据
+	memcpy(shmPtr1, src_data, len);
+	memcpy(shmPtr2, src_data, len);
+	memcpy(shmPtr3, src_data, len);
 
-	return 1;
+	return;
 }
 
-//描述：三取二读数据-所有整型
-//输入：arg1-起始指针
-//	    arg2-写入数值
-//		arg3-地址偏移
-//输出：读取的数值
 template <typename T>
-T threeChooseTwo_read(T* stratPtr, int add_bias){
-	int bias_T;
-	switch(sizeof(T)){
-	case 1:
-		bias_T = add_bias;
-		break;
-	case 2:
-		bias_T = add_bias>>1;
-		break;
-	case 4:
-		bias_T = add_bias>>2;
-		break;
-	case 8:
-		bias_T = add_bias>>3;
-		break;
-	case 16:
-		bias_T = add_bias>>4;
-		break;
-	case 32:
-		bias_T = add_bias>>5;
-		break;
-	default:
-		bias_T = add_bias/sizeof(T);
+void threeChooseTwo_write(void* shmPtr, T src_data, int add_bias, int len=sizeof(T)){
+
+	char* shmPtr1 = (char*)shmPtr;
+	char* shmPtr2 = shmPtr1+add_bias;
+	char* shmPtr3 = shmPtr2+add_bias;
+
+	//保存三份数据
+	memcpy(shmPtr1, (void *)(&src_data), len);
+	memcpy(shmPtr2, (void *)(&src_data), len);
+	memcpy(shmPtr3, (void *)(&src_data), len);
+
+	return;
+}
+
+//描述：三取二读数据
+template <typename T>
+T* threeChooseTwo_read(void* shmPtr, int add_bias, int len=sizeof(T)){
+	char* shmPtr1 = (char*)shmPtr;
+	char* shmPtr2 = shmPtr1+add_bias;
+	char* shmPtr3 = shmPtr2+add_bias;
+
+	if( memcmp(shmPtr1, shmPtr2, len) == 0 ){
+		return (T*)shmPtr; //1,2相等
 	}
-
-	T SEU_result;
-
-	T* stratPtr_bias1 = (T*)(stratPtr+bias_T);
-	T* stratPtr_bias2 = (T*)(stratPtr+bias_T+bias_T);
-
-	T D1 = *stratPtr;
-	T D2 = *(stratPtr_bias1);
-	T D3 = *(stratPtr_bias2);
-
-	// 三个数都相同
-	if( (D1 == D2 ) || (D1 == D3) ){
-		return D1;
+	else if(memcmp(shmPtr1, shmPtr3, len) == 0){
+		return (T*)shmPtr; //1,3相等
 	}
 	else{
-		cout<<"ThreeChooseTwo read warning: Single Event Upsets!"<<endl;
-		SEU_result = ((D1&D2)|(D1&D3)|(D2&D3));
-		return SEU_result;
+		// 2,3相等返回2,否则返回第一个指针的数
+		return (memcmp(shmPtr2, shmPtr3, len) == 0?  (T*)shmPtr2: (T*)shmPtr); 
 	}
+
+	return 0;
 
 }
 
-template<>
-float threeChooseTwo_read<float>(float* stratPtr, int add_bias); //threeChooseTwo_read的float特例化函数
-
-template<>
-double threeChooseTwo_read<double>(double* stratPtr, int add_bias); //threeChooseTwo_read的double特例化函数
-
-#endif  //__REDUNDENCY__
+#endif  //__REDUN__

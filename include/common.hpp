@@ -13,6 +13,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#include <sys/socket.h>  //socket 通信
+#include <netinet/in.h> 
+#include <arpa/inet.h>
+
 #include <pthread.h> //配置线程
 #include <sched.h> //配置进程 调度方式
 

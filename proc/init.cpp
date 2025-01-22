@@ -1,17 +1,23 @@
 #include "common.hpp"
 #include "proc.hpp"
+#include "signal.h"
 
 using namespace std;
 
 //执行任务入口
 int (*task)(void) = __proc_entry__;
 
-int proc_cpuFlg; //进程绑定cpu标识
+int proc_cpuNum;
+int proc_cpuFlg[1000]; //进程绑定cpu标识
 int proc_modFlg; //进程任务模块标识
 struct _shmPtr shmPtr; //共享内存地址-结构体
 char cpu_status[4]; //标识cpu的可用情况-cpu在硬件层面是否可用
 int cpuNum;
 
+void Ctrl_C_func(int sigFlg){
+	exit(1);
+	return;
+}
 
 /*
  * 主程序入口
@@ -28,32 +34,69 @@ int main(int argc, const char** argv){
 	cout<<"###Space Linux Init Begin###"<<endl;
 	cout<<"PID: "<<pid<<endl;
 
+	//键盘按键中断检测
+	signal(SIGINT, Ctrl_C_func);  //Ctrl+C
+
 	/*********************** 输入参数检测 ***************************/
 
-	if (argc < 3){
-		cout<<"Init Error: the Process input needs (proc_mod, proc_cpu)!"<<endl;
+	if (argc < 5){
+		cerr<<"Input Error: the Process input needs (-mod n, -cpu m)!"<<endl;
 		return 0;
 	}
 
-	//获得执行任务模块的序号
-	proc_modFlg = atoi(argv[1]);
+	string modflg_str = "-mod";
+	string cpuflg_str = "-cpu";
+	string cpuall_str = "all";
 
-	// 获取该进程所绑定的cpu核心
-	proc_cpuFlg = atoi(argv[2]);
+	string modflg_in = argv[1];
+	string cpuflg_in = argv[3];
+	string cpuall_in = argv[4];
+
+	//获得执行任务模块的序号
+	if (modflg_str == modflg_in )
+		proc_modFlg = atoi(argv[2]);
+	else{
+		cerr<<"Input Error: Please give the Algo module index (e.g. -mod 0)!"<<endl;
+		return 0;
+	}
+
+	proc_cpuNum = argc-4;
+
+	if ((proc_cpuNum<0) || (cpuflg_str != cpuflg_in)){
+		cerr<<"Input Error: Please give the Algo module index (e.g. -cpu 2)!"<<endl;
+		return 0;
+	}
 
 	/*********************** 设置进程的CPU核心 **********************/
 	cpu_set_t cpuset;
+	int i;
 	//获取cpu的核心数
 	cpuNum = sysconf(_SC_NPROCESSORS_CONF);
 
-	if(proc_cpuFlg>=cpuNum){
-		cout<<"Input CPU kernel Error!"<<endl;
-		exit(0);
+	CPU_ZERO(&cpuset); //cpu组清空
+
+	if(cpuall_in == cpuall_str){
+		for(i=0;i<cpuNum;i++){
+			CPU_SET(i, &cpuset);
+			proc_cpuFlg[i] = i;
+		}
+		proc_cpuNum = i;
+	}
+	else{
+		for(i=0;i<proc_cpuNum;i++){
+			if(atoi(argv[4+i])>=cpuNum){
+				cout<<"Input CPU core Error!"<<endl;
+				exit(0);
+			}
+
+			CPU_SET(atoi(argv[4+i]), &cpuset);
+			proc_cpuFlg[i] = atoi(argv[4+i]);
+		}
 	}
 
-	CPU_ZERO(&cpuset); //cpu组清空
-	CPU_SET(proc_cpuFlg, &cpuset); //将cpu_bind加入cpuset中
-	//将该进程与某个cpu绑定
+
+
+	//将该进程与cpuset绑定
 	sched_setaffinity(pid, sizeof(cpu_set_t), &cpuset);
 
 	/*********************** 设置进程的属性 ************************/
@@ -80,9 +123,9 @@ int main(int argc, const char** argv){
 
 	/************************ 进程间通信（IPC）-共享内存（shared memory） ***************************/
 	// 获取共享内存的指针
-	shmPtr.origin = getShm_with_key(4096,"/home/kdp-pi/Space_AI/",77);
+	shmPtr.origin = getShm_with_key(SHM_SIZE,"/home/kdp-pi/Space_AI/",777);
 	shmPtr.ModCnt = (unsigned long *)shmPtr.origin; 
-	shmPtr.ModCPU = (int*)(shmPtr.ModCnt+cpuNum); //8可以改成cpu数
+	shmPtr.ModCPU = (int*)(shmPtr.ModCnt+cpuNum); //cpuNum为可用的cpu数量
 
 	// cpu 状态置1-代表全部可用
 	cpu_status[0] = 1; //一共4个cpu，4个标志位

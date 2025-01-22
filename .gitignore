@@ -37,6 +37,15 @@ build/
 # Nocompile dictionary
 NoCompile/
 
+<<<<<<< HEAD
+=======
+# ImgBed
+imageBed/
+
+# 视频文件
+*.mp4
+
+>>>>>>> 0d5f0a1 (v1.1-20250122)
 # build mid file
 .*.cmd
 
