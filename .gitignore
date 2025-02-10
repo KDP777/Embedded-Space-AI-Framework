@@ -33,3 +33,18 @@
 
 # build dictionary
 build/
+
+# Nocompile dictionary
+NoCompile/
+
+# ImgBed
+imageBed/
+
+# 视频文件
+*.mp4
+
+# build mid file
+.*.cmd
+
+#test files
+hello*
